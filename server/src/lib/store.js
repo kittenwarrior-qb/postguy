@@ -8,6 +8,8 @@ const defaults = {
   collections: [],
   environments: [],
   history: [],
+  cookies: [],
+  settings: {},
 };
 
 /**

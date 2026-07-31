@@ -240,6 +240,21 @@ export function ResponsePanel({ result, loading }) {
           <span>
             Size: <strong>{formatBytes(response.size)}</strong>
           </span>
+          {response.redirects > 0 && (
+            <span title="Redirects followed, carrying cookies along the way">
+              Redirects: <strong>{response.redirects}</strong>
+            </span>
+          )}
+          {response.viaProxy && (
+            <span className="badge on" title="This request went through the configured proxy">
+              proxy
+            </span>
+          )}
+          {response.setCookies?.length > 0 && (
+            <span title={response.setCookies.map((c) => `${c.name}=${c.value}`).join('\n')}>
+              Cookies set: <strong>{response.setCookies.length}</strong>
+            </span>
+          )}
         </div>
       </div>
 

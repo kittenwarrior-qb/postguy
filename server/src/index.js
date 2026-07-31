@@ -7,6 +7,7 @@ import express from 'express';
 
 import { historyRouter, sendRouter } from './routes/send.js';
 import { normaliseCollection, normaliseEnvironment, resourceRouter } from './routes/resources.js';
+import { toolsRouter } from './routes/tools.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT ?? 4000);
@@ -19,6 +20,7 @@ app.get('/api/health', (_req, res) => res.json({ ok: true, name: 'postguy', vers
 
 app.use('/api', sendRouter);
 app.use('/api', historyRouter);
+app.use('/api', toolsRouter);
 app.use('/api', resourceRouter('collections', { normalise: normaliseCollection }));
 app.use('/api', resourceRouter('environments', { normalise: normaliseEnvironment }));
 

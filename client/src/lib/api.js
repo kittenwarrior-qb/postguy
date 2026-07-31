@@ -29,4 +29,17 @@ export const api = {
 
   listHistory: () => request('/history'),
   clearHistory: () => request('/history', { method: 'DELETE' }),
+
+  getSettings: () => request('/settings'),
+  saveSettings: (body) => request('/settings', { method: 'PUT', body }),
+  testProxy: (body) => request('/settings/test-proxy', { method: 'POST', body }),
+
+  listCookies: () => request('/cookies'),
+  addCookie: (body) => request('/cookies', { method: 'POST', body }),
+  clearCookies: (domain) =>
+    request(`/cookies${domain ? `?domain=${encodeURIComponent(domain)}` : ''}`, {
+      method: 'DELETE',
+    }),
+
+  getOAuthToken: (body) => request('/oauth/token', { method: 'POST', body }),
 };

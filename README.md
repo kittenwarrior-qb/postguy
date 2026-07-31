@@ -23,6 +23,18 @@ values back into your environment — all in plain JS, with `await` available at
 - Response viewer with pretty-printed JSON, headers, timing and size
 - Collection runner — runs every request in order through one shared environment
 
+**Getting connected**
+
+- **Upstream proxy** with optional login (Basic `Proxy-Authorization`), a per-host bypass list, and a
+  "test proxy connection" button. HTTPS goes through `CONNECT`, so an intercepting proxy works too.
+- **Cookie jar** — `Set-Cookie` is captured and replayed on matching requests, so you hit a login
+  endpoint once and stay logged in. Domain/path/secure matching, expiry and `Max-Age` are honoured,
+  and cookies carry across redirect hops (the usual `POST /login` → `302` → `/me` flow).
+- **OAuth 2.0** — fetch a token with the client-credentials or password grant, with the client
+  secret sent in the body or as a Basic header, then reuse it as the request's bearer token.
+- **Request settings** — timeout, redirect following and limit, and a TLS-verification toggle for
+  dev servers with self-signed certificates.
+
 **The part that makes it different**
 
 Two script slots per request, both full JavaScript:
@@ -142,6 +154,15 @@ pg.expect(pg.response).to.have.status(200);
 pg.expect(value).to.not.equal(x);      // negate anything
 ```
 
+### Cookies
+
+```js
+await pg.cookies.all();                     // everything in the jar
+await pg.cookies.get('sid');                // one value, optionally per domain
+await pg.cookies.set({ name: 'sid', value: 'abc', domain: 'example.com' });
+await pg.cookies.clear('example.com');      // or clear() for the whole jar
+```
+
 ### Utilities
 
 ```js
@@ -175,18 +196,24 @@ back, which is what makes request chaining work across a collection run.
 
 ```
 server/
-  src/lib/http.js        request execution (auth, bodies, timeouts, redirects)
+  src/lib/http.js        request execution (auth, bodies, timeouts, redirects, cookies)
   src/lib/scripting.js   the JS sandbox and the `pg` API
   src/lib/assert.js      the chai-flavoured expect() used by pg.expect
   src/lib/execute.js     the request lifecycle described above
   src/lib/variables.js   {{variable}} and {{$dynamic}} resolution
-  src/routes/            send, collection runner, collections, environments, history
+  src/lib/proxy.js       upstream proxy dispatcher (auth, bypass, TLS options)
+  src/lib/cookies.js     the cookie jar — parsing, matching, expiry
+  src/lib/oauth.js       OAuth 2.0 token requests
+  src/lib/settings.js    persisted proxy/request/cookie settings
+  src/routes/            send, collection runner, collections, environments, history, tools
 client/
   src/components/        request builder, response viewer, sidebar, modals
   src/store/useStore.js  application state (zustand)
 ```
 
-Collections, environments and history persist as JSON files under `server/data/`.
+Collections, environments, history, cookies and settings persist as JSON files under
+`server/data/`. That includes any credentials you type into a request or into the proxy
+settings, stored in plain text — it is a local scratchpad, not a secrets manager.
 
 ## A note on the sandbox
 

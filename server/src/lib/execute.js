@@ -1,5 +1,6 @@
 import { sendRequest } from './http.js';
 import { runScript } from './scripting.js';
+import { getSettings } from './settings.js';
 import { resolveDeep } from './variables.js';
 
 /**
@@ -66,7 +67,7 @@ export async function execute({ request, environment = {}, globals = {} }) {
     scope,
   );
 
-  const response = await sendRequest(resolved);
+  const response = await sendRequest(resolved, { settings: await getSettings() });
 
   const post = await runScript({
     code: request.scripts?.postResponse,

@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 
+import { CookiesModal } from './components/CookiesModal.jsx';
 import { EnvironmentModal } from './components/EnvironmentModal.jsx';
 import { RequestPanel } from './components/RequestPanel.jsx';
+import { SettingsModal } from './components/SettingsModal.jsx';
 import { ResponsePanel } from './components/ResponsePanel.jsx';
 import { RunnerModal } from './components/RunnerModal.jsx';
 import { Sidebar } from './components/Sidebar.jsx';
+import { api } from './lib/api.js';
 import {
   METHODS,
   METHOD_COLORS,
@@ -165,6 +168,17 @@ export default function App() {
   const [showEnv, setShowEnv] = useState(false);
   const [showSave, setShowSave] = useState(false);
   const [showRunner, setShowRunner] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showCookies, setShowCookies] = useState(false);
+  const [proxyOn, setProxyOn] = useState(false);
+
+  useEffect(() => {
+    if (showSettings) return; // re-check once the modal closes
+    api
+      .getSettings()
+      .then((settings) => setProxyOn(Boolean(settings.proxy?.enabled && settings.proxy?.host)))
+      .catch(() => setProxyOn(false));
+  }, [showSettings]);
 
   const tab = tabs.find((item) => item.id === activeTabId) ?? tabs[0];
 
@@ -216,6 +230,17 @@ export default function App() {
         <button type="button" className="btn small" onClick={() => setShowEnv(true)}>
           Manage
         </button>
+        <button type="button" className="btn small" onClick={() => setShowCookies(true)}>
+          Cookies
+        </button>
+        <button type="button" className="btn small" onClick={() => setShowSettings(true)}>
+          Settings
+          {proxyOn && (
+            <span className="badge on" title="Requests are going through a proxy">
+              proxy
+            </span>
+          )}
+        </button>
       </header>
 
       <div className="body">
@@ -236,6 +261,8 @@ export default function App() {
       </div>
 
       {showEnv && <EnvironmentModal onClose={() => setShowEnv(false)} />}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showCookies && <CookiesModal onClose={() => setShowCookies(false)} />}
       {showSave && <SaveDialog onClose={() => setShowSave(false)} />}
       {showRunner && <RunnerModal onClose={() => setShowRunner(false)} />}
 

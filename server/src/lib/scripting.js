@@ -3,6 +3,7 @@ import { Buffer } from 'node:buffer';
 import { createHash, createHmac, randomUUID, webcrypto } from 'node:crypto';
 
 import { expect } from './assert.js';
+import { clearCookies, getCookies, setCookie } from './cookies.js';
 import { rowsToObject, sendRequest } from './http.js';
 
 const SCRIPT_TIMEOUT_MS = 15_000;
@@ -253,6 +254,19 @@ export async function runScript({
       skipRequest: () => {
         control.skipRequest = true;
       },
+    },
+    /** The shared cookie jar — read the session a login just established. */
+    cookies: {
+      all: () => getCookies(),
+      get: async (name, domain) => {
+        const jar = await getCookies();
+        const found = jar.find(
+          (cookie) => cookie.name === name && (!domain || cookie.domain === domain),
+        );
+        return found?.value;
+      },
+      set: (cookie) => setCookie(cookie),
+      clear: (domain) => clearCookies(domain),
     },
   };
 

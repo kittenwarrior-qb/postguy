@@ -1,4 +1,9 @@
 import { Buffer } from 'node:buffer';
+import { fetch } from 'undici';
+
+import { cookieHeaderFor, storeSetCookies } from './cookies.js';
+import { buildDispatcher } from './proxy.js';
+import { getSettings } from './settings.js';
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 const MAX_BODY_BYTES = 8 * 1024 * 1024; // keep the UI responsive on huge payloads
@@ -25,6 +30,8 @@ function applyAuth(auth, headers, url) {
   } else if (auth.type === 'apiKey' && auth.key) {
     if (auth.in === 'query') url.searchParams.set(auth.key, auth.value ?? '');
     else headers[auth.key] = auth.value ?? '';
+  } else if (auth.type === 'oauth2' && auth.accessToken) {
+    headers.Authorization = `${auth.tokenType || 'Bearer'} ${auth.accessToken}`;
   }
 }
 
@@ -77,8 +84,9 @@ function buildBody(request, headers) {
  * Never throws for HTTP-level failures — network errors come back as
  * `{ error }` so the UI can render them like Postman does.
  */
-export async function sendRequest(request) {
+export async function sendRequest(request, options = {}) {
   const started = Date.now();
+  const settings = options.settings ?? (await getSettings());
   let url;
   try {
     url = new URL(request.url);
@@ -95,19 +103,81 @@ export async function sendRequest(request) {
 
   const headers = rowsToObject(request.headers);
   applyAuth(request.auth, headers, url);
-  const body = buildBody(request, headers);
+  let body = buildBody(request, headers);
+
+  const useCookies = settings.cookies?.enabled !== false && options.cookies !== false;
+  if (useCookies) {
+    const jarHeader = await cookieHeaderFor(url.toString());
+    const explicit = Object.keys(headers).find((h) => h.toLowerCase() === 'cookie');
+    if (jarHeader) {
+      // A hand-written Cookie header wins; the jar only tops it up.
+      headers[explicit ?? 'Cookie'] = explicit
+        ? `${headers[explicit]}; ${jarHeader}`
+        : jarHeader;
+    }
+  }
+
+  const timeoutMs = request.timeout ?? settings.request?.timeout ?? DEFAULT_TIMEOUT_MS;
+  const followRedirects =
+    request.followRedirects ?? settings.request?.followRedirects !== false;
+  const maxRedirects = settings.request?.maxRedirects ?? 5;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), request.timeout ?? DEFAULT_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const { dispatcher, viaProxy } = buildDispatcher(settings, url.toString());
 
   try {
-    const res = await fetch(url, {
-      method: request.method ?? 'GET',
-      headers,
-      body,
-      redirect: request.followRedirects === false ? 'manual' : 'follow',
-      signal: controller.signal,
-    });
+    // Redirects are followed by hand so each hop can pick up the cookies the
+    // previous hop set — the usual login → 302 → dashboard flow.
+    let currentUrl = url;
+    let res;
+    let redirects = 0;
+    const setCookies = [];
+
+    for (;;) {
+      res = await fetch(currentUrl, {
+        method: request.method ?? 'GET',
+        headers,
+        body,
+        redirect: 'manual',
+        signal: controller.signal,
+        dispatcher,
+      });
+
+      if (useCookies) {
+        const hop = await storeSetCookies(res.headers.getSetCookie?.() ?? [], currentUrl.toString());
+        setCookies.push(...hop);
+      }
+
+      const location = res.headers.get('location');
+      const isRedirect = [301, 302, 303, 307, 308].includes(res.status);
+      if (!followRedirects || !isRedirect || !location || redirects >= maxRedirects) break;
+
+      const nextUrl = new URL(location, currentUrl);
+      // 303 (and 301/302 in practice) turn the follow-up into a GET.
+      if (res.status === 303 || ((res.status === 301 || res.status === 302) && request.method === 'POST')) {
+        request = { ...request, method: 'GET' };
+        body = undefined;
+        delete headers['Content-Type'];
+        delete headers['content-type'];
+      }
+      // Don't leak credentials to a different origin.
+      if (nextUrl.origin !== currentUrl.origin) {
+        for (const key of Object.keys(headers)) {
+          if (key.toLowerCase() === 'authorization') delete headers[key];
+        }
+      }
+      if (useCookies) {
+        const jarHeader = await cookieHeaderFor(nextUrl.toString());
+        const existing = Object.keys(headers).find((h) => h.toLowerCase() === 'cookie');
+        if (existing) delete headers[existing];
+        if (jarHeader) headers.Cookie = jarHeader;
+      }
+
+      await res.body?.cancel().catch(() => {});
+      currentUrl = nextUrl;
+      redirects += 1;
+    }
 
     const buffer = Buffer.from(await res.arrayBuffer());
     const truncated = buffer.byteLength > MAX_BODY_BYTES;
@@ -124,7 +194,10 @@ export async function sendRequest(request) {
       size: buffer.byteLength,
       truncated,
       time: Date.now() - started,
-      url: res.url || url.toString(),
+      url: currentUrl.toString(),
+      redirects,
+      viaProxy,
+      setCookies,
       request: {
         method: request.method ?? 'GET',
         url: url.toString(),
@@ -132,11 +205,19 @@ export async function sendRequest(request) {
       },
     };
   } catch (err) {
+    const reason = err.cause?.message ?? err.message;
     return {
-      error: err.name === 'AbortError' ? 'Request timed out' : (err.cause?.message ?? err.message),
+      error:
+        err.name === 'AbortError'
+          ? `Request timed out after ${timeoutMs} ms`
+          : viaProxy
+            ? `Proxy error: ${reason}`
+            : reason,
+      viaProxy,
       time: Date.now() - started,
     };
   } finally {
     clearTimeout(timeout);
+    dispatcher?.close?.().catch(() => {});
   }
 }

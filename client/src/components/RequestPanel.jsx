@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { CodeEditor } from './CodeEditor.jsx';
 import { KeyValueEditor } from './KeyValueEditor.jsx';
 import { ScriptSnippets } from './ScriptSnippets.jsx';
+import { api } from '../lib/api.js';
 import { activeCount } from '../lib/request.js';
 import { useStore } from '../store/useStore.js';
 
@@ -12,6 +13,135 @@ const BODY_MODES = [
   { id: 'urlencoded', label: 'x-www-form-urlencoded' },
   { id: 'formdata', label: 'form-data' },
 ];
+
+function OAuth2Editor({ auth, set }) {
+  const notify = useStore((state) => state.notify);
+  const [fetching, setFetching] = useState(false);
+  const [result, setResult] = useState(null);
+  const grantType = auth.grantType ?? 'client_credentials';
+
+  const getToken = async () => {
+    setFetching(true);
+    setResult(null);
+    try {
+      const token = await api.getOAuthToken({ ...auth, grantType });
+      set({
+        accessToken: token.accessToken,
+        tokenType: token.tokenType,
+        obtainedAt: Date.now(),
+        expiresIn: token.expiresIn,
+      });
+      setResult({ ok: true, expiresIn: token.expiresIn });
+      notify('Access token received');
+    } catch (err) {
+      setResult({ ok: false, error: err.message });
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  return (
+    <>
+      <label>
+        Grant type
+        <select value={grantType} onChange={(e) => set({ grantType: e.target.value })}>
+          <option value="client_credentials">Client credentials</option>
+          <option value="password">Password credentials</option>
+        </select>
+      </label>
+      <label>
+        Access token URL
+        <input
+          type="text"
+          placeholder="https://auth.example.com/oauth/token"
+          value={auth.tokenUrl ?? ''}
+          onChange={(e) => set({ tokenUrl: e.target.value })}
+        />
+      </label>
+      <label>
+        Client ID
+        <input
+          type="text"
+          value={auth.clientId ?? ''}
+          onChange={(e) => set({ clientId: e.target.value })}
+        />
+      </label>
+      <label>
+        Client secret
+        <input
+          type="password"
+          value={auth.clientSecret ?? ''}
+          onChange={(e) => set({ clientSecret: e.target.value })}
+        />
+      </label>
+
+      {grantType === 'password' && (
+        <>
+          <label>
+            Username
+            <input
+              type="text"
+              value={auth.username ?? ''}
+              onChange={(e) => set({ username: e.target.value })}
+            />
+          </label>
+          <label>
+            Password
+            <input
+              type="password"
+              value={auth.password ?? ''}
+              onChange={(e) => set({ password: e.target.value })}
+            />
+          </label>
+        </>
+      )}
+
+      <label>
+        Scope
+        <input
+          type="text"
+          placeholder="read write"
+          value={auth.scope ?? ''}
+          onChange={(e) => set({ scope: e.target.value })}
+        />
+      </label>
+      <label>
+        Send client credentials
+        <select value={auth.clientAuth ?? 'body'} onChange={(e) => set({ clientAuth: e.target.value })}>
+          <option value="body">In the request body</option>
+          <option value="header">As a Basic auth header</option>
+        </select>
+      </label>
+
+      <label>
+        Access token
+        <input
+          type="text"
+          placeholder="Fetched by the button below, or paste one in"
+          value={auth.accessToken ?? ''}
+          onChange={(e) => set({ accessToken: e.target.value })}
+        />
+      </label>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button type="button" className="btn small" onClick={getToken} disabled={fetching}>
+          {fetching ? 'Requesting…' : 'Get new access token'}
+        </button>
+        {result && (
+          <span className="hint" style={{ color: result.ok ? 'var(--green)' : 'var(--red)' }}>
+            {result.ok
+              ? `Token stored${result.expiresIn ? ` — expires in ${result.expiresIn}s` : ''}`
+              : result.error}
+          </span>
+        )}
+      </div>
+      <p className="hint">
+        The token request goes through the configured proxy too. All fields support{' '}
+        <code>{'{{variables}}'}</code>.
+      </p>
+    </>
+  );
+}
 
 function AuthEditor({ auth, onChange }) {
   const type = auth?.type ?? 'none';
@@ -26,8 +156,11 @@ function AuthEditor({ auth, onChange }) {
           <option value="bearer">Bearer token</option>
           <option value="basic">Basic auth</option>
           <option value="apiKey">API key</option>
+          <option value="oauth2">OAuth 2.0</option>
         </select>
       </label>
+
+      {type === 'oauth2' && <OAuth2Editor auth={auth} set={set} />}
 
       {type === 'bearer' && (
         <label>
