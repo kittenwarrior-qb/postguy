@@ -25,8 +25,12 @@ values back into your environment — all in plain JS, with `await` available at
 
 **Getting connected**
 
-- **Upstream proxy** with optional login (Basic `Proxy-Authorization`), a per-host bypass list, and a
-  "test proxy connection" button. HTTPS goes through `CONNECT`, so an intercepting proxy works too.
+- **Proxy pool** — paste a list of proxies (`host:port:user:pass` and the other usual formats) and
+  requests rotate across them: round-robin, sticky-per-host, random, or first-healthy. "Test all"
+  checks every proxy in parallel and reports its exit IP, country and latency; a proxy that will not
+  connect is skipped and the request retries on the next one. Per-host bypass list, and Basic
+  `Proxy-Authorization` per entry. HTTPS goes through `CONNECT`, so pointing the pool at a single
+  intercepting proxy works too.
 - **Cookie jar** — `Set-Cookie` is captured and replayed on matching requests, so you hit a login
   endpoint once and stay logged in. Domain/path/secure matching, expiry and `Max-Age` are honoured,
   and cookies carry across redirect hops (the usual `POST /login` → `302` → `/me` flow).
@@ -34,6 +38,34 @@ values back into your environment — all in plain JS, with `await` available at
   secret sent in the body or as a Basic header, then reuse it as the request's bearer token.
 - **Request settings** — timeout, redirect following and limit, and a TLS-verification toggle for
   dev servers with self-signed certificates.
+
+**Script tabs — jobs, not requests**
+
+A second kind of tab. Instead of one request with a script attached, it is a script that runs on a
+schedule you set in the toolbar:
+
+- **Iterations**, **concurrency** and **interval** (ms / sec / min / hour) — the script describes a
+  single iteration and the runner repeats it. `concurrency 1 + interval 15s` is a slow poller;
+  `concurrency 10 + interval 0` is a load burst. Lanes pull from a shared queue, so a slow call
+  never holds up the others.
+- **Every call is logged** — the Requests tab lists each `pg.sendRequest()` with status, time, size
+  and which proxy it went out through; click one to read its full response, pretty-printed.
+- **`pg.record({ ... })`** adds a row to the Results table, which builds a column per key.
+- **Per-tab variables** (`pg.vars`) live with the script and keep whatever the run wrote back, so a
+  token fetched on the first run is there on the next.
+- Jobs run on the server: closing the tab or reloading the page does not stop them, and reopening
+  reattaches to the live output. **Stop** ends the run at the next iteration boundary.
+
+```js
+const base = pg.vars.get('baseUrl');
+const res = await pg.sendRequest(`${base}/dashboard?bot=${pg.job.iteration}`);
+const data = res.tryJson() ?? {};
+
+pg.record({ bot: pg.job.iteration, status: res.status, coins: data.coins, ms: res.time });
+```
+
+With a proxy pool switched on, concurrent iterations each take the next proxy, so ten lanes go out
+from ten different IPs.
 
 **The part that makes it different**
 
@@ -154,6 +186,21 @@ pg.expect(pg.response).to.have.status(200);
 pg.expect(value).to.not.equal(x);      // negate anything
 ```
 
+### Script tabs only
+
+```js
+pg.job.iteration                   // 1-based, which repeat this is
+pg.job.iterations                  // how many were asked for
+pg.job.concurrency
+pg.job.stopping                    // true once Stop was pressed
+pg.vars.get('token');              // variables that belong to this tab
+pg.vars.set('token', 'abc');       // kept for the next run
+pg.record({ bot: 3, ok: true });   // one row in the Results table
+pg.batch(items, worker, 5);        // run a worker over items, 5 at a time
+await pg.sleep(60_000);            // no five-second cap here
+pg.stop();                         // end the whole job from inside
+```
+
 ### Cookies
 
 ```js
@@ -201,7 +248,8 @@ server/
   src/lib/assert.js      the chai-flavoured expect() used by pg.expect
   src/lib/execute.js     the request lifecycle described above
   src/lib/variables.js   {{variable}} and {{$dynamic}} resolution
-  src/lib/proxy.js       upstream proxy dispatcher (auth, bypass, TLS options)
+  src/lib/proxy.js       the proxy pool — parsing, rotation, bypass, health
+  src/lib/jobs.js        the background job runner behind script tabs
   src/lib/cookies.js     the cookie jar — parsing, matching, expiry
   src/lib/oauth.js       OAuth 2.0 token requests
   src/lib/settings.js    persisted proxy/request/cookie settings
@@ -226,5 +274,5 @@ don't point it at scripts you wouldn't otherwise run.
 
 | Shortcut | Action |
 | --- | --- |
-| `Ctrl`/`Cmd` + `Enter` | Send request |
+| `Ctrl`/`Cmd` + `Enter` | Send request, or run the script in a script tab |
 | `Ctrl`/`Cmd` + `S` | Save request |

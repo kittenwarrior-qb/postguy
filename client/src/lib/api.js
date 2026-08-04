@@ -33,6 +33,8 @@ export const api = {
   getSettings: () => request('/settings'),
   saveSettings: (body) => request('/settings', { method: 'PUT', body }),
   testProxy: (body) => request('/settings/test-proxy', { method: 'POST', body }),
+  testProxies: (body) => request('/settings/test-proxies', { method: 'POST', body }),
+  parseProxies: (body) => request('/settings/parse-proxies', { method: 'POST', body }),
 
   listCookies: () => request('/cookies'),
   addCookie: (body) => request('/cookies', { method: 'POST', body }),
@@ -42,4 +44,11 @@ export const api = {
     }),
 
   getOAuthToken: (body) => request('/oauth/token', { method: 'POST', body }),
+
+  listJobs: () => request('/jobs'),
+  startJob: (body) => request('/jobs', { method: 'POST', body }),
+  getJob: (id) => request(`/jobs/${id}`),
+  stopJob: (id) => request(`/jobs/${id}`, { method: 'DELETE' }),
+  /** SSE endpoint — opened with EventSource, not fetch. */
+  jobEventsUrl: (id) => `${BASE}/jobs/${id}/events`,
 };

@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { fetch } from 'undici';
 
-import { buildDispatcher } from './proxy.js';
+import { buildDispatcher, orderedProxiesFor } from './proxy.js';
 import { getSettings } from './settings.js';
 
 /**
@@ -48,7 +48,10 @@ export async function fetchAccessToken(config) {
   }
 
   const settings = await getSettings();
-  const { dispatcher } = buildDispatcher(settings, tokenUrl);
+  // One token request, so take the proxy the pool offers first rather than
+  // walking the whole list.
+  const [entry = null] = orderedProxiesFor(settings, tokenUrl);
+  const dispatcher = buildDispatcher(settings, entry);
 
   try {
     const res = await fetch(tokenUrl, {

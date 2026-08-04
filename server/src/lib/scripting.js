@@ -52,7 +52,7 @@ function fromScriptRequest(scriptRequest) {
   };
 }
 
-function serialiseLogArg(arg) {
+export function serialiseLogArg(arg) {
   if (typeof arg === 'string') return arg;
   if (arg instanceof Error) return `${arg.name}: ${arg.message}`;
   try {
@@ -60,6 +60,31 @@ function serialiseLogArg(arg) {
   } catch {
     return String(arg);
   }
+}
+
+/**
+ * `pg.utils` — the same helpers for request scripts and job scripts.
+ *
+ * Request scripts cap `sleep` at five seconds because they hold up a request
+ * that the user is watching; a job script runs in the background and may well
+ * want to wait an hour, so it passes its own limit.
+ */
+export function makeUtils({ maxSleepMs = 5000 } = {}) {
+  return {
+    uuid: () => randomUUID(),
+    now: () => Date.now(),
+    timestamp: () => Math.floor(Date.now() / 1000),
+    isoNow: () => new Date().toISOString(),
+    randomInt: (min = 0, max = 100) => Math.floor(Math.random() * (max - min + 1)) + min,
+    base64Encode: (input) => Buffer.from(String(input), 'utf8').toString('base64'),
+    base64Decode: (input) => Buffer.from(String(input), 'base64').toString('utf8'),
+    hash: (algorithm, data, encoding = 'hex') =>
+      createHash(algorithm).update(String(data)).digest(encoding),
+    hmac: (algorithm, key, data, encoding = 'hex') =>
+      createHmac(algorithm, String(key)).update(String(data)).digest(encoding),
+    sleep: (ms) =>
+      new Promise((resolve) => setTimeout(resolve, Math.min(Number(ms) || 0, maxSleepMs))),
+  };
 }
 
 /** A mutable variable scope exposed to scripts (`pg.environment`, `pg.globals`). */
@@ -206,20 +231,7 @@ export async function runScript({
     toObject: () => ({ ...glob.values, ...env.values }),
   };
 
-  const utils = {
-    uuid: () => randomUUID(),
-    now: () => Date.now(),
-    timestamp: () => Math.floor(Date.now() / 1000),
-    isoNow: () => new Date().toISOString(),
-    randomInt: (min = 0, max = 100) => Math.floor(Math.random() * (max - min + 1)) + min,
-    base64Encode: (input) => Buffer.from(String(input), 'utf8').toString('base64'),
-    base64Decode: (input) => Buffer.from(String(input), 'base64').toString('utf8'),
-    hash: (algorithm, data, encoding = 'hex') =>
-      createHash(algorithm).update(String(data)).digest(encoding),
-    hmac: (algorithm, key, data, encoding = 'hex') =>
-      createHmac(algorithm, String(key)).update(String(data)).digest(encoding),
-    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, Math.min(Number(ms) || 0, 5000))),
-  };
+  const utils = makeUtils();
 
   const pg = {
     info: { phase, requestName, eventName: phase === 'pre' ? 'prerequest' : 'test' },

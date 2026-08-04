@@ -187,6 +187,11 @@ export function ResponsePanel({ result, loading }) {
             <div className="response-empty">
               <strong style={{ color: 'var(--red)' }}>Could not send request</strong>
               <span>{response.error}</span>
+              {response.failedProxies?.length > 1 && (
+                <span className="hint">
+                  Tried {response.failedProxies.length} proxies in the pool, none connected.
+                </span>
+              )}
             </div>
           ) : (
             <ConsoleView logs={logs} scriptErrors={result.scriptErrors} />
@@ -245,9 +250,18 @@ export function ResponsePanel({ result, loading }) {
               Redirects: <strong>{response.redirects}</strong>
             </span>
           )}
-          {response.viaProxy && (
-            <span className="badge on" title="This request went through the configured proxy">
-              proxy
+          {response.via && (
+            <span
+              className="badge on"
+              title={
+                response.failedProxies?.length
+                  ? `Went out through ${response.via}. Tried first and failed:\n` +
+                    response.failedProxies.map((item) => `• ${item.error}`).join('\n')
+                  : `This request went out through ${response.via}`
+              }
+            >
+              via {response.via}
+              {response.failedProxies?.length > 0 && ` (+${response.failedProxies.length} failed)`}
             </span>
           )}
           {response.setCookies?.length > 0 && (

@@ -89,9 +89,14 @@ function CollectionsTree({ onRun }) {
                 >
                   <span
                     className="method-tag"
-                    style={{ color: METHOD_COLORS[request.method] ?? 'var(--text-dim)' }}
+                    style={{
+                      color:
+                        request.kind === 'script'
+                          ? 'var(--accent)'
+                          : (METHOD_COLORS[request.method] ?? 'var(--text-dim)'),
+                    }}
                   >
-                    {request.method}
+                    {request.kind === 'script' ? 'JS' : request.method}
                   </span>
                   <span className="tree-name">{request.name}</span>
                   <span className="tree-actions">

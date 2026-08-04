@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { CookiesModal } from './components/CookiesModal.jsx';
 import { EnvironmentModal } from './components/EnvironmentModal.jsx';
 import { RequestPanel } from './components/RequestPanel.jsx';
+import { ScriptTab } from './components/ScriptTab.jsx';
 import { SettingsModal } from './components/SettingsModal.jsx';
 import { ResponsePanel } from './components/ResponsePanel.jsx';
 import { RunnerModal } from './components/RunnerModal.jsx';
@@ -23,38 +24,84 @@ function TabStrip() {
   const setActiveTab = useStore((state) => state.setActiveTab);
   const closeTab = useStore((state) => state.closeTab);
   const newTab = useStore((state) => state.newTab);
+  const newScriptTab = useStore((state) => state.newScriptTab);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <div className="tabstrip">
-      {tabs.map((tab) => (
-        <div
-          key={tab.id}
-          className={`tab${tab.id === activeTabId ? ' active' : ''}`}
-          onClick={() => setActiveTab(tab.id)}
+      {tabs.map((tab) => {
+        const isScript = tab.kind === 'script';
+        const running = tab.job?.status === 'running';
+        return (
+          <div
+            key={tab.id}
+            className={`tab${tab.id === activeTabId ? ' active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            <span
+              className="tab-method"
+              style={{
+                color: isScript ? 'var(--accent)' : (METHOD_COLORS[tab.request.method] ?? 'var(--text-dim)'),
+              }}
+            >
+              {isScript ? 'JS' : tab.request.method}
+            </span>
+            <span className="tab-name">
+              {(isScript ? tab.script.name : tab.request.name) || 'Untitled'}
+            </span>
+            {running && <span className="dot-running" title="Job running" />}
+            {tab.dirty && <span className="dot-dirty" title="Unsaved changes" />}
+            <button
+              type="button"
+              className="tab-close"
+              onClick={(e) => {
+                e.stopPropagation();
+                closeTab(tab.id);
+              }}
+            >
+              ×
+            </button>
+          </div>
+        );
+      })}
+
+      <div className="tab-add-wrap">
+        <button
+          type="button"
+          className="tab-add"
+          onClick={() => setMenuOpen((open) => !open)}
+          title="New tab"
         >
-          <span
-            className="tab-method"
-            style={{ color: METHOD_COLORS[tab.request.method] ?? 'var(--text-dim)' }}
-          >
-            {tab.request.method}
-          </span>
-          <span className="tab-name">{tab.request.name || 'Untitled'}</span>
-          {tab.dirty && <span className="dot-dirty" title="Unsaved changes" />}
-          <button
-            type="button"
-            className="tab-close"
-            onClick={(e) => {
-              e.stopPropagation();
-              closeTab(tab.id);
-            }}
-          >
-            ×
-          </button>
-        </div>
-      ))}
-      <button type="button" className="tab-add" onClick={newTab} title="New request">
-        +
-      </button>
+          +
+        </button>
+        {menuOpen && (
+          <>
+            <div className="menu-backdrop" onClick={() => setMenuOpen(false)} />
+            <div className="tab-menu">
+              <button
+                type="button"
+                onClick={() => {
+                  newTab();
+                  setMenuOpen(false);
+                }}
+              >
+                <strong>New request</strong>
+                <span>Build and send a single call</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  newScriptTab();
+                  setMenuOpen(false);
+                }}
+              >
+                <strong>New script</strong>
+                <span>Run JavaScript on a loop, in parallel</span>
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -170,14 +217,19 @@ export default function App() {
   const [showRunner, setShowRunner] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showCookies, setShowCookies] = useState(false);
-  const [proxyOn, setProxyOn] = useState(false);
+  const [proxyCount, setProxyCount] = useState(0);
 
   useEffect(() => {
     if (showSettings) return; // re-check once the modal closes
     api
       .getSettings()
-      .then((settings) => setProxyOn(Boolean(settings.proxy?.enabled && settings.proxy?.host)))
-      .catch(() => setProxyOn(false));
+      .then((settings) => {
+        const pool = settings.proxy?.enabled
+          ? (settings.proxy.list ?? []).filter((entry) => entry.enabled !== false && entry.host)
+          : [];
+        setProxyCount(pool.length);
+      })
+      .catch(() => setProxyCount(0));
   }, [showSettings]);
 
   const tab = tabs.find((item) => item.id === activeTabId) ?? tabs[0];
@@ -190,7 +242,9 @@ export default function App() {
     const onKey = (event) => {
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
         event.preventDefault();
-        send();
+        const current = useStore.getState().activeTab();
+        if (current?.kind === 'script') useStore.getState().runJob();
+        else send();
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
         event.preventDefault();
@@ -235,9 +289,12 @@ export default function App() {
         </button>
         <button type="button" className="btn small" onClick={() => setShowSettings(true)}>
           Settings
-          {proxyOn && (
-            <span className="badge on" title="Requests are going through a proxy">
-              proxy
+          {proxyCount > 0 && (
+            <span
+              className="badge on"
+              title={`Requests are rotating across ${proxyCount} prox${proxyCount === 1 ? 'y' : 'ies'}`}
+            >
+              {proxyCount} proxy
             </span>
           )}
         </button>
@@ -248,15 +305,18 @@ export default function App() {
 
         <main className="main">
           <TabStrip />
-          {tab && (
-            <>
-              <UrlBar request={tab.request} onSave={() => setShowSave(true)} />
-              <div className="panes">
-                <RequestPanel request={tab.request} key={tab.id} />
-                <ResponsePanel result={tab.response} loading={loading} />
-              </div>
-            </>
-          )}
+          {tab &&
+            (tab.kind === 'script' ? (
+              <ScriptTab tab={tab} key={tab.id} />
+            ) : (
+              <>
+                <UrlBar request={tab.request} onSave={() => setShowSave(true)} />
+                <div className="panes">
+                  <RequestPanel request={tab.request} key={tab.id} />
+                  <ResponsePanel result={tab.response} loading={loading} />
+                </div>
+              </>
+            ))}
         </main>
       </div>
 

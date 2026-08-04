@@ -882,3 +882,462 @@ pre.output {
   border-color: var(--accent);
   color: var(--text);
 }
+
+/* ---------- proxy pool ---------- */
+.modal.wide {
+  width: min(940px, 94vw);
+}
+
+.proxy-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+
+.proxy-toolbar .hint {
+  margin-right: auto;
+}
+
+.proxy-paste {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.proxy-paste textarea {
+  width: 100%;
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 8px 10px;
+  background: var(--bg-input, var(--bg-panel));
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+}
+
+.proxy-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.proxy-table th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-faint);
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.proxy-table td {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border-soft);
+  vertical-align: middle;
+}
+
+.proxy-table tr[data-off='true'] {
+  opacity: 0.45;
+}
+
+.proxy-table input[type='text'],
+.proxy-table input[type='password'],
+.proxy-table input[type='number'] {
+  width: 100%;
+  min-width: 70px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+.proxy-table .mono {
+  font-family: var(--mono);
+}
+
+.proxy-table .narrow {
+  min-width: 56px;
+  width: 68px;
+}
+
+.proxy-row-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.proxy-health {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.proxy-health code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.proxy-health .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.proxy-health.good .dot {
+  background: var(--green);
+}
+
+.proxy-health.bad {
+  color: var(--red);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.proxy-health.bad .dot {
+  background: var(--red);
+}
+
+/* ---------- script tabs / jobs ---------- */
+.dot-running {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  flex-shrink: 0;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.tab-add-wrap {
+  position: relative;
+}
+
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.tab-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 41;
+  min-width: 240px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  display: grid;
+  gap: 2px;
+}
+
+.tab-menu button {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 12.5px;
+}
+
+.tab-menu button:hover {
+  background: var(--bg-input);
+}
+
+.tab-menu button span {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.script-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-input);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.script-config {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.script-config > label {
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-faint);
+}
+
+.script-config input[type='number'] {
+  width: 84px;
+  padding: 5px 8px;
+  font-size: 12.5px;
+}
+
+.interval-field > span {
+  display: flex;
+  gap: 4px;
+}
+
+.interval-field select {
+  padding: 5px 6px;
+  font-size: 12.5px;
+}
+
+.script-config-note {
+  padding-bottom: 5px;
+}
+
+.script-config-actions {
+  margin-left: auto;
+  padding-bottom: 3px;
+}
+
+.run-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 16px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 12px;
+  min-height: 34px;
+}
+
+.pill.status {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.pill.status.running {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.pill.status.done {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.pill.status.error,
+.pill.status.disconnected {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.pill.status.stopped {
+  border-color: var(--yellow);
+  color: var(--yellow);
+}
+
+.progress {
+  flex: 0 1 220px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--bg-input);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+
+.progress-fill[data-running='false'] {
+  background: var(--green);
+}
+
+.btn.danger {
+  background: var(--red);
+  border-color: var(--red);
+  color: #fff;
+}
+
+.btn.danger:hover {
+  filter: brightness(1.1);
+}
+
+/* Same top/bottom split as a request tab: what you write above, what came back below. */
+.pane.script-editor-pane {
+  flex: 1 1 38%;
+  border-bottom: 1px solid var(--border);
+}
+
+.pane.job-output-pane {
+  flex: 1 1 62%;
+}
+
+.script-editor-pane .pane-body,
+.job-output-pane .pane-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.script-editor-pane .pane-body > .editor-wrap {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ---------- job tables ---------- */
+.job-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.job-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  font-weight: 500;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-faint);
+  background: var(--bg-panel);
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.job-table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border-soft);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Columns hug their content; the trailing spacer soaks up the rest, so a
+   two-column Results table doesn't stretch each cell across the pane. */
+.job-table th,
+.job-table td {
+  width: 1px;
+}
+
+.job-table th.spacer,
+.job-table td.spacer {
+  width: auto;
+  padding: 0;
+}
+
+.job-table tbody tr {
+  cursor: pointer;
+}
+
+.job-table tbody tr:hover {
+  background: var(--bg-input);
+}
+
+.job-table tr[data-selected='true'] {
+  background: var(--bg-input);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.job-table tr[data-failed='true'] td:first-child {
+  box-shadow: inset 2px 0 0 var(--red);
+}
+
+.job-table .cell-url {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.split-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.split-top {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.split-bottom {
+  flex: 1;
+  min-height: 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+.request-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.request-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 12px;
+}
+
+.request-detail-head button {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.request-detail-head button.active {
+  background: var(--bg-input);
+  color: var(--text);
+}
+
+.request-detail-url {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.request-detail-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
