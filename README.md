@@ -14,7 +14,13 @@ values back into your environment — all in plain JS, with `await` available at
 **The Postman part**
 
 - `GET` / `POST` / `PUT` / `PATCH` / `DELETE` / `HEAD` / `OPTIONS`
-- Query params, headers, and bodies (`raw` JSON/text/XML/HTML, `x-www-form-urlencoded`, `form-data`)
+- Query params, headers, and bodies — `raw` JSON/text/XML/HTML, `x-www-form-urlencoded`,
+  `form-data` **with real file uploads**, and `binary` to send a file as the whole body
+- **Import** a cURL command, a Postman collection (v2.0 / v2.1), a Postman environment export, or an
+  OpenAPI 3 / Swagger 2 spec in JSON or YAML — the format is detected, and you see a preview of
+  every request before anything is saved
+- **Code generation** — turn the request in front of you into cURL, `fetch`, axios or Python
+  `requests`, with the auth applied so the snippet runs as-is
 - Authorization helpers: Bearer token, Basic auth, API key (header or query)
 - Collections, saved requests, and request history
 - Environments with `{{variable}}` substitution anywhere — URL, headers, body, auth
@@ -250,6 +256,7 @@ server/
   src/lib/variables.js   {{variable}} and {{$dynamic}} resolution
   src/lib/proxy.js       the proxy pool — parsing, rotation, bypass, health
   src/lib/jobs.js        the background job runner behind script tabs
+  src/lib/import/        cURL, Postman and OpenAPI parsers
   src/lib/cookies.js     the cookie jar — parsing, matching, expiry
   src/lib/oauth.js       OAuth 2.0 token requests
   src/lib/settings.js    persisted proxy/request/cookie settings

@@ -1,13 +1,13 @@
 export const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
 
 export const METHOD_COLORS = {
-  GET: '#2fa84f',
-  POST: '#d99f24',
-  PUT: '#3f8ee0',
-  PATCH: '#8a63d2',
-  DELETE: '#d94b4b',
-  HEAD: '#19a5a5',
-  OPTIONS: '#8b8b8b',
+  GET: 'var(--method-get)',
+  POST: 'var(--method-post)',
+  PUT: 'var(--method-put)',
+  PATCH: 'var(--method-patch)',
+  DELETE: 'var(--method-delete)',
+  HEAD: 'var(--method-head)',
+  OPTIONS: 'var(--method-options)',
 };
 
 let counter = 0;
@@ -29,7 +29,14 @@ export function blankRequest(overrides = {}) {
     params: [emptyRow()],
     headers: [emptyRow()],
     auth: { type: 'none' },
-    body: { mode: 'none', language: 'json', raw: '', urlencoded: [emptyRow()], formdata: [emptyRow()] },
+    body: {
+      mode: 'none',
+      language: 'json',
+      raw: '',
+      urlencoded: [emptyRow()],
+      formdata: [emptyRow()],
+      file: null,
+    },
     scripts: { preRequest: '', postResponse: '' },
     ...overrides,
   };
@@ -146,6 +153,25 @@ export function toWireRequest(request) {
       .filter((row) => row.key?.trim())
       .map(({ key, value, enabled }) => ({ key, value, enabled: enabled !== false }));
 
+  // Form rows may carry an attached file, which travels base64-encoded because
+  // the browser cannot hand the server a path.
+  const cleanForm = (rows) =>
+    (rows ?? [])
+      .filter((row) => row.key?.trim())
+      .map((row) =>
+        row.type === 'file'
+          ? {
+              key: row.key,
+              value: '',
+              enabled: row.enabled !== false,
+              type: 'file',
+              fileName: row.fileName ?? '',
+              contentType: row.contentType ?? '',
+              data: row.data ?? '',
+            }
+          : { key: row.key, value: row.value, enabled: row.enabled !== false },
+      );
+
   return {
     name: request.name,
     method: request.method,
@@ -158,11 +184,42 @@ export function toWireRequest(request) {
       language: request.body.language,
       raw: request.body.raw,
       urlencoded: clean(request.body.urlencoded),
-      formdata: clean(request.body.formdata),
+      formdata: cleanForm(request.body.formdata),
+      file: request.body.file ?? null,
     },
     scripts: request.scripts,
     followRedirects: request.followRedirects !== false,
   };
+}
+
+/**
+ * File bytes would blow the localStorage quota, so the workspace remembers
+ * which file was attached but not its contents — the same trade Postman makes
+ * when it stores a path.
+ */
+export function forStorage(request) {
+  if (!request?.body) return request;
+  const dropData = (rows) =>
+    (rows ?? []).map((row) => (row.type === 'file' ? { ...row, data: '' } : row));
+
+  return {
+    ...request,
+    body: {
+      ...request.body,
+      formdata: dropData(request.body.formdata),
+      file: request.body.file ? { ...request.body.file, data: '' } : null,
+    },
+  };
+}
+
+/** True when a file row lost its bytes to a page reload. */
+export function needsReattach(body) {
+  if (!body) return false;
+  if (body.mode === 'binary') return Boolean(body.file?.fileName && !body.file.data);
+  if (body.mode === 'formdata') {
+    return (body.formdata ?? []).some((row) => row.type === 'file' && row.fileName && !row.data);
+  }
+  return false;
 }
 
 /** Count the badge numbers Postman shows on each tab. */
@@ -178,11 +235,11 @@ export function formatBytes(bytes) {
 }
 
 export function statusColor(status) {
-  if (!status) return '#d94b4b';
-  if (status < 300) return '#2fa84f';
-  if (status < 400) return '#3f8ee0';
-  if (status < 500) return '#d99f24';
-  return '#d94b4b';
+  if (!status) return 'var(--status-error)';
+  if (status < 300) return 'var(--status-ok)';
+  if (status < 400) return 'var(--status-redirect)';
+  if (status < 500) return 'var(--status-warning)';
+  return 'var(--status-error)';
 }
 
 export function prettyJson(text) {

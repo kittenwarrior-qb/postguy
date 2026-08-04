@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 
+import { CodeModal } from './components/CodeModal.jsx';
 import { CookiesModal } from './components/CookiesModal.jsx';
 import { EnvironmentModal } from './components/EnvironmentModal.jsx';
+import { ImportModal } from './components/ImportModal.jsx';
 import { RequestPanel } from './components/RequestPanel.jsx';
 import { ScriptTab } from './components/ScriptTab.jsx';
 import { SettingsModal } from './components/SettingsModal.jsx';
@@ -17,6 +19,43 @@ import {
   urlWithoutQuery,
 } from './lib/request.js';
 import { useStore } from './store/useStore.js';
+import { Badge } from './components/ui/Badge.jsx';
+import { Button } from './components/ui/Button.jsx';
+import { Modal } from './components/ui/Modal.jsx';
+
+const THEME_OPTIONS = [
+  { id: 'dark', label: 'Professional Dark', accent: '#8b93ff', solid: '#5b63e8' },
+  { id: 'midnight', label: 'Midnight', accent: '#6fb3ff', solid: '#3b7dd8' },
+  { id: 'tokyo', label: 'Tokyo Night', accent: '#c3a6f7', solid: '#9568e0' },
+  { id: 'postman', label: 'Postman Orange', accent: '#ff6c37', solid: '#e85a2a' },
+];
+
+function ThemeSwitch() {
+  const [theme, setTheme] = useState(() => localStorage.getItem('postguy:theme') || 'dark');
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('postguy:theme', theme);
+  }, [theme]);
+
+  return (
+    <div className="theme-switch" aria-label="Color theme">
+      {THEME_OPTIONS.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          className={`theme-dot${theme === option.id ? ' active' : ''}`}
+          title={option.label}
+          aria-label={option.label}
+          onClick={() => setTheme(option.id)}
+          style={{ '--theme-accent': option.accent, '--theme-solid': option.solid }}
+        >
+          <span />
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function TabStrip() {
   const tabs = useStore((state) => state.tabs);
@@ -26,6 +65,18 @@ function TabStrip() {
   const newTab = useStore((state) => state.newTab);
   const newScriptTab = useStore((state) => state.newScriptTab);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState(null);
+
+  const toggleMenu = (event) => {
+    if (menuOpen) {
+      setMenuOpen(false);
+      setMenuPosition(null);
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    setMenuPosition({ top: rect.bottom + 4, left: rect.left });
+    setMenuOpen(true);
+  };
 
   return (
     <div className="tabstrip">
@@ -69,20 +120,27 @@ function TabStrip() {
         <button
           type="button"
           className="tab-add"
-          onClick={() => setMenuOpen((open) => !open)}
+          onClick={toggleMenu}
           title="New tab"
         >
           +
         </button>
         {menuOpen && (
           <>
-            <div className="menu-backdrop" onClick={() => setMenuOpen(false)} />
-            <div className="tab-menu">
+            <div
+              className="menu-backdrop"
+              onClick={() => {
+                setMenuOpen(false);
+                setMenuPosition(null);
+              }}
+            />
+            <div className="tab-menu" style={menuPosition ?? undefined}>
               <button
                 type="button"
                 onClick={() => {
                   newTab();
                   setMenuOpen(false);
+                  setMenuPosition(null);
                 }}
               >
                 <strong>New request</strong>
@@ -93,6 +151,7 @@ function TabStrip() {
                 onClick={() => {
                   newScriptTab();
                   setMenuOpen(false);
+                  setMenuPosition(null);
                 }}
               >
                 <strong>New script</strong>
@@ -106,7 +165,7 @@ function TabStrip() {
   );
 }
 
-function UrlBar({ request, onSave }) {
+function UrlBar({ request, onSave, onCode }) {
   const patchRequest = useStore((state) => state.patchRequest);
   const send = useStore((state) => state.send);
   const loading = useStore((state) => state.loading);
@@ -145,12 +204,15 @@ function UrlBar({ request, onSave }) {
         }}
       />
 
-      <button type="button" className="btn primary" onClick={send} disabled={loading}>
+      <Button variant="primary" onClick={send} disabled={loading}>
         {loading ? 'Sending…' : 'Send'}
-      </button>
-      <button type="button" className="btn" onClick={onSave}>
+      </Button>
+      <Button onClick={onSave}>
         Save
-      </button>
+      </Button>
+      <Button onClick={onCode} title="Generate a code snippet for this request">
+        {'</>'}
+      </Button>
     </div>
   );
 }
@@ -160,43 +222,34 @@ function SaveDialog({ onClose }) {
   const saveToCollection = useStore((state) => state.saveToCollection);
   const activeTab = useStore((state) => state.activeTab());
   const patchRequest = useStore((state) => state.patchRequest);
-  const [name, setName] = useState(activeTab?.request.name ?? '');
+  const patchScript = useStore((state) => state.patchScript);
+  const isScript = activeTab?.kind === 'script';
+  const [name, setName] = useState(isScript ? activeTab?.script.name ?? '' : activeTab?.request.name ?? '');
 
   const save = async (collectionId) => {
-    patchRequest({ name });
+    if (isScript) patchScript({ name });
+    else patchRequest({ name });
     // patchRequest is synchronous in the store, so the tab already has the name.
     await saveToCollection(collectionId);
     onClose();
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ width: 'min(460px, 92vw)' }}>
-        <div className="modal-head">
-          <span>Save request</span>
-          <button type="button" className="btn ghost small" onClick={onClose}>
-            ×
+    <Modal title={isScript ? 'Save script asset' : 'Save request'} onClose={onClose} width="min(460px, 92vw)">
+      <label style={{ display: 'grid', gap: 6, marginBottom: 14 }}>
+        {isScript ? 'Asset name' : 'Request name'}
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
+      </label>
+      <p className="hint">Save to collection</p>
+      {!collections.length && <p className="empty-hint">Create a collection in the sidebar first.</p>}
+      <div className="snippet-list">
+        {collections.map((collection) => (
+          <button key={collection.id} type="button" onClick={() => save(collection.id)}>
+            {collection.name}
           </button>
-        </div>
-        <div className="modal-body">
-          <label style={{ display: 'grid', gap: 6, marginBottom: 14 }}>
-            Request name
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
-          </label>
-          <p className="hint">Save to collection</p>
-          {!collections.length && (
-            <p className="empty-hint">Create a collection in the sidebar first.</p>
-          )}
-          <div className="snippet-list">
-            {collections.map((collection) => (
-              <button key={collection.id} type="button" onClick={() => save(collection.id)}>
-                {collection.name}
-              </button>
-            ))}
-          </div>
-        </div>
+        ))}
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -217,6 +270,8 @@ export default function App() {
   const [showRunner, setShowRunner] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showCookies, setShowCookies] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [showCode, setShowCode] = useState(false);
   const [proxyCount, setProxyCount] = useState(0);
 
   useEffect(() => {
@@ -265,9 +320,13 @@ export default function App() {
       <header className="topbar">
         <div className="logo">
           <span className="logo-mark">P</span>
-          Postguy <small>API client with JS superpowers</small>
+          <div className="logo-copy">
+            <strong>PostGuy</strong>
+            <small>API client with JS superpowers</small>
+          </div>
         </div>
         <div className="topbar-spacer" />
+        <ThemeSwitch />
         <select
           className="env-select"
           value={activeEnvironmentId ?? ''}
@@ -281,36 +340,40 @@ export default function App() {
             </option>
           ))}
         </select>
-        <button type="button" className="btn small" onClick={() => setShowEnv(true)}>
+        <Button className="top-btn" onClick={() => setShowEnv(true)}>
           Manage
-        </button>
-        <button type="button" className="btn small" onClick={() => setShowCookies(true)}>
+        </Button>
+        <Button className="top-btn" onClick={() => setShowCookies(true)}>
           Cookies
-        </button>
-        <button type="button" className="btn small" onClick={() => setShowSettings(true)}>
+        </Button>
+        <Button className="top-btn" onClick={() => setShowSettings(true)}>
           Settings
           {proxyCount > 0 && (
-            <span
-              className="badge on"
+            <Badge
+              tone="on"
               title={`Requests are rotating across ${proxyCount} prox${proxyCount === 1 ? 'y' : 'ies'}`}
             >
               {proxyCount} proxy
-            </span>
+            </Badge>
           )}
-        </button>
+        </Button>
       </header>
 
       <div className="body">
-        <Sidebar onRun={onRunCollection} />
+        <Sidebar onRun={onRunCollection} onImport={() => setShowImport(true)} />
 
         <main className="main">
           <TabStrip />
           {tab &&
             (tab.kind === 'script' ? (
-              <ScriptTab tab={tab} key={tab.id} />
+                <ScriptTab tab={tab} key={tab.id} onSave={() => setShowSave(true)} />
             ) : (
               <>
-                <UrlBar request={tab.request} onSave={() => setShowSave(true)} />
+                <UrlBar
+                  request={tab.request}
+                  onSave={() => setShowSave(true)}
+                  onCode={() => setShowCode(true)}
+                />
                 <div className="panes">
                   <RequestPanel request={tab.request} key={tab.id} />
                   <ResponsePanel result={tab.response} loading={loading} />
@@ -325,6 +388,10 @@ export default function App() {
       {showCookies && <CookiesModal onClose={() => setShowCookies(false)} />}
       {showSave && <SaveDialog onClose={() => setShowSave(false)} />}
       {showRunner && <RunnerModal onClose={() => setShowRunner(false)} />}
+      {showImport && <ImportModal onClose={() => setShowImport(false)} />}
+      {showCode && tab?.kind !== 'script' && (
+        <CodeModal request={tab.request} onClose={() => setShowCode(false)} />
+      )}
 
       {toast && <div className={`toast ${toast.tone}`}>{toast.message}</div>}
     </div>

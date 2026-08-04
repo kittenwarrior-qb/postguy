@@ -1,5 +1,8 @@
-import { Buffer } from 'node:buffer';
-import { fetch } from 'undici';
+import { Blob, Buffer } from 'node:buffer';
+// FormData must come from the same undici copy as `fetch`: the bundled classes
+// are not the Node globals, and undici's instanceof check would miss them —
+// which silently sent the string "[object FormData]" as the body.
+import { FormData, fetch } from 'undici';
 
 import { cookieHeaderFor, storeSetCookies } from './cookies.js';
 import { buildDispatcher, markProxyDown, markProxyUp, orderedProxiesFor, proxyLabel } from './proxy.js';
@@ -90,11 +93,38 @@ function buildBody(request, headers) {
 
   if (mode === 'formdata') {
     const form = new FormData();
-    for (const [k, v] of Object.entries(rowsToObject(body.formdata))) form.append(k, v);
+    for (const row of body.formdata ?? []) {
+      if (!row || row.enabled === false) continue;
+      const key = String(row.key ?? '').trim();
+      if (!key) continue;
+
+      if (row.type === 'file') {
+        // The browser cannot hand us a path, so the file arrives base64-encoded
+        // in the request payload and is turned back into bytes here.
+        if (!row.data) continue;
+        const bytes = Buffer.from(String(row.data), 'base64');
+        form.append(
+          key,
+          new Blob([bytes], { type: row.contentType || 'application/octet-stream' }),
+          row.fileName || 'file',
+        );
+      } else {
+        form.append(key, String(row.value ?? ''));
+      }
+    }
     // Let undici set the multipart boundary itself.
     delete headers['Content-Type'];
     delete headers['content-type'];
     return form;
+  }
+
+  if (mode === 'binary') {
+    if (!body.file?.data) return undefined;
+    const hasContentType = Object.keys(headers).some((h) => h.toLowerCase() === 'content-type');
+    if (!hasContentType) {
+      headers['Content-Type'] = body.file.contentType || 'application/octet-stream';
+    }
+    return Buffer.from(String(body.file.data), 'base64');
   }
 
   return undefined;

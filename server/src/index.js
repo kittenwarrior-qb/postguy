@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import cors from 'cors';
 import express from 'express';
 
+import { importRouter } from './routes/import.js';
 import { jobsRouter } from './routes/jobs.js';
 import { historyRouter, sendRouter } from './routes/send.js';
 import { normaliseCollection, normaliseEnvironment, resourceRouter } from './routes/resources.js';
@@ -23,6 +24,7 @@ app.use('/api', sendRouter);
 app.use('/api', historyRouter);
 app.use('/api', toolsRouter);
 app.use('/api', jobsRouter);
+app.use('/api', importRouter);
 app.use('/api', resourceRouter('collections', { normalise: normaliseCollection }));
 app.use('/api', resourceRouter('environments', { normalise: normaliseEnvironment }));
 

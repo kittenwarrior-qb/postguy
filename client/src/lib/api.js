@@ -29,6 +29,7 @@ export const api = {
 
   listHistory: () => request('/history'),
   clearHistory: () => request('/history', { method: 'DELETE' }),
+  deleteHistory: (id) => request(`/history/${id}`, { method: 'DELETE' }),
 
   getSettings: () => request('/settings'),
   saveSettings: (body) => request('/settings', { method: 'PUT', body }),
@@ -44,6 +45,8 @@ export const api = {
     }),
 
   getOAuthToken: (body) => request('/oauth/token', { method: 'POST', body }),
+
+  importText: (body) => request('/import', { method: 'POST', body }),
 
   listJobs: () => request('/jobs'),
   startJob: (body) => request('/jobs', { method: 'POST', body }),

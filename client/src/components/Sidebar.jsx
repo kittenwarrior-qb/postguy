@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { api } from '../lib/api.js';
-import { METHOD_COLORS, blankRequest } from '../lib/request.js';
+import { METHOD_COLORS, blankRequest, formatBytes, formatDuration } from '../lib/request.js';
 import { useStore } from '../store/useStore.js';
 
-function CollectionsTree({ onRun }) {
+function CollectionsTree({ onRun, onImport }) {
   const collections = useStore((state) => state.collections);
   const openTab = useStore((state) => state.openTab);
   const refresh = useStore((state) => state.refresh);
@@ -54,11 +54,15 @@ function CollectionsTree({ onRun }) {
         <button type="button" className="btn small" onClick={addCollection}>
           + Collection
         </button>
+        <button type="button" className="btn small" onClick={onImport}>
+          Import
+        </button>
       </div>
       <div className="sidebar-list">
         {!collections.length && (
           <p className="empty-hint">
-            No collections yet. Create one, then use <strong>Save</strong> on a request to store it here.
+            No collections yet. Create one, or <strong>Import</strong> a Postman collection, an
+            OpenAPI spec or a cURL command.
           </p>
         )}
         {collections.map((collection) => (
@@ -121,11 +125,30 @@ function HistoryList() {
   const history = useStore((state) => state.history);
   const openTab = useStore((state) => state.openTab);
   const refresh = useStore((state) => state.refresh);
+  const notify = useStore((state) => state.notify);
+  const [query, setQuery] = useState('');
+
+  const filteredHistory = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return history;
+    return history.filter((entry) =>
+      [entry.method, entry.url, entry.name, entry.status].some((value) =>
+        String(value ?? '').toLowerCase().includes(needle),
+      ),
+    );
+  }, [history, query]);
 
   const clear = async () => {
     if (!confirm('Clear all history?')) return;
     await api.clearHistory();
     await refresh();
+  };
+
+  const remove = async (event, entry) => {
+    event.stopPropagation();
+    await api.deleteHistory(entry.id);
+    await refresh();
+    notify('Removed history entry');
   };
 
   return (
@@ -134,15 +157,25 @@ function HistoryList() {
         <button type="button" className="btn small" onClick={clear} disabled={!history.length}>
           Clear history
         </button>
+        <input
+          className="history-search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Filter"
+          aria-label="Filter request history"
+        />
       </div>
       <div className="sidebar-list">
         {!history.length && <p className="empty-hint">Requests you send show up here.</p>}
-        {history.map((entry) => (
+        {history.length > 0 && !filteredHistory.length && (
+          <p className="empty-hint">No history matches “{query}”.</p>
+        )}
+        {filteredHistory.map((entry) => (
           <div
             key={entry.id}
-            className="tree-item"
+            className="tree-item history-item"
             onClick={() => openTab({ ...entry.request, id: `${entry.request.id ?? 'req'}-${entry.id}` })}
-            title={entry.url}
+            title="Open in Repeater"
           >
             <span
               className="method-tag"
@@ -150,7 +183,21 @@ function HistoryList() {
             >
               {entry.method}
             </span>
-            <span className="tree-name">{entry.url}</span>
+            <span className="tree-name history-name">
+              <span>{entry.name || entry.url}</span>
+              <small>{entry.url}</small>
+            </span>
+            <span className={`history-status ${entry.error ? 'error' : ''}`}>
+              {entry.status ?? 'ERR'}
+            </span>
+            <span className="history-actions">
+              <span className="history-time" title={`${formatBytes(entry.size)} response`}>
+                {formatDuration(entry.time)}
+              </span>
+              <button type="button" title="Remove history entry" onClick={(event) => remove(event, entry)}>
+                ×
+              </button>
+            </span>
             {entry.testsFailed > 0 && <span className="badge fail">{entry.testsFailed}</span>}
           </div>
         ))}
@@ -159,7 +206,7 @@ function HistoryList() {
   );
 }
 
-export function Sidebar({ onRun }) {
+export function Sidebar({ onRun, onImport }) {
   const sidebarTab = useStore((state) => state.sidebarTab);
   const setTab = (tab) => useStore.setState({ sidebarTab: tab });
 
@@ -181,7 +228,11 @@ export function Sidebar({ onRun }) {
           History
         </button>
       </div>
-      {sidebarTab === 'collections' ? <CollectionsTree onRun={onRun} /> : <HistoryList />}
+      {sidebarTab === 'collections' ? (
+        <CollectionsTree onRun={onRun} onImport={onImport} />
+      ) : (
+        <HistoryList />
+      )}
     </aside>
   );
 }

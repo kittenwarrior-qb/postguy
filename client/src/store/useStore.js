@@ -4,6 +4,7 @@ import { api } from '../lib/api.js';
 import {
   blankRequest,
   blankScript,
+  forStorage,
   intervalToMs,
   mergeVarsIntoRows,
   toWireRequest,
@@ -161,7 +162,12 @@ export const useStore = create((set, get) => ({
   persistTabs: () => {
     const { tabs, activeTabId } = get();
     // Responses and job output can be megabytes — persist only the work itself.
-    const slim = tabs.map(({ id, kind, request, script }) => ({ id, kind, request, script }));
+    const slim = tabs.map(({ id, kind, request, script }) => ({
+      id,
+      kind,
+      request: request ? forStorage(request) : null,
+      script,
+    }));
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ tabs: slim, activeTabId }));
     } catch {
@@ -359,6 +365,47 @@ export const useStore = create((set, get) => ({
   clearJobOutput: () => {
     const tab = get().activeTab();
     if (tab) get().patchTabJob(tab.id, { ...emptyJob() });
+  },
+
+  /**
+   * Commit what the import preview showed: a single request opens in a tab, a
+   * collection and its variables are saved and appear in the sidebar.
+   */
+  applyImport: async (result) => {
+    const { kind, request, collection, environment } = result;
+    let environmentId = null;
+
+    if (environment) {
+      const created = await api.createEnvironment({
+        name: environment.name,
+        values: environment.values,
+      });
+      environmentId = created.id;
+    }
+
+    if (kind === 'request' && request) {
+      get().openTab({ ...blankRequest(), ...request, id: uid('req') });
+    }
+
+    if (kind === 'collection' && collection) {
+      await api.createCollection({
+        name: collection.name,
+        requests: collection.requests.map((item) => ({ ...blankRequest(), ...item, id: uid('req') })),
+      });
+      useStore.setState({ sidebarTab: 'collections' });
+    }
+
+    await get().refresh();
+    // An imported environment is only useful once it is the active one.
+    if (environmentId) get().setActiveEnvironment(environmentId);
+
+    const summary =
+      kind === 'collection'
+        ? `Imported ${collection.requests.length} request${collection.requests.length === 1 ? '' : 's'} into "${collection.name}"`
+        : kind === 'environment'
+          ? `Imported environment "${environment.name}"`
+          : `Imported ${request.method} request`;
+    get().notify(summary);
   },
 
   saveToCollection: async (collectionId) => {

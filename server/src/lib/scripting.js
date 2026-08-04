@@ -34,8 +34,28 @@ function toScriptRequest(request) {
   };
 }
 
-/** Convert the script's view back into the row shape the sender expects. */
-function fromScriptRequest(scriptRequest) {
+/**
+ * Convert the script's view back into the row shape the sender expects.
+ *
+ * Scripts see form fields as a plain object, which cannot carry an attached
+ * file, so file rows and a binary body are taken from the original request
+ * rather than round-tripped — otherwise editing one header would drop the
+ * upload.
+ */
+function fromScriptRequest(scriptRequest, original) {
+  const originalFiles = new Map(
+    (original?.body?.formdata ?? [])
+      .filter((row) => row?.type === 'file' && row.key)
+      .map((row) => [String(row.key), row]),
+  );
+
+  const formdata = objectToRows(scriptRequest.body?.formdata).map((row) =>
+    originalFiles.has(row.key) ? { ...originalFiles.get(row.key), enabled: row.enabled } : row,
+  );
+  for (const [key, row] of originalFiles) {
+    if (!formdata.some((entry) => entry.key === key)) formdata.push(row);
+  }
+
   return {
     method: scriptRequest.method,
     url: scriptRequest.url,
@@ -47,7 +67,8 @@ function fromScriptRequest(scriptRequest) {
       raw: scriptRequest.body?.raw ?? '',
       language: scriptRequest.body?.language ?? 'json',
       urlencoded: objectToRows(scriptRequest.body?.urlencoded),
-      formdata: objectToRows(scriptRequest.body?.formdata),
+      formdata,
+      file: original?.body?.file ?? null,
     },
   };
 }
@@ -174,7 +195,7 @@ export async function runScript({
       tests,
       environment: env.values,
       globals: glob.values,
-      request: fromScriptRequest(scriptRequest),
+      request: fromScriptRequest(scriptRequest, request),
       skipRequest: false,
     };
   }
@@ -340,7 +361,7 @@ export async function runScript({
     error,
     environment: env.values,
     globals: glob.values,
-    request: fromScriptRequest(scriptRequest),
+    request: fromScriptRequest(scriptRequest, request),
     skipRequest: control.skipRequest,
   };
 }

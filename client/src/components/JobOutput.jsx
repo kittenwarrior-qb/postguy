@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { CodeEditor } from './CodeEditor.jsx';
 import { KeyValueEditor } from './KeyValueEditor.jsx';
-import { METHOD_COLORS, formatBytes, prettyJson, statusColor } from '../lib/request.js';
+import { METHOD_COLORS, formatBytes, statusColor } from '../lib/request.js';
 import { useStore } from '../store/useStore.js';
 
 function looksLikeJson(text) {
@@ -16,6 +16,50 @@ function shortUrl(url) {
     return `${parsed.pathname}${parsed.search}` || '/';
   } catch {
     return url;
+  }
+}
+
+function JsonNode({ label, value, depth = 0 }) {
+  const isArray = Array.isArray(value);
+  const isObject = value !== null && typeof value === 'object';
+  if (!isObject) {
+    return (
+      <div className="json-leaf">
+        {label !== undefined && <span className="json-key">{label}: </span>}
+        <code className={`json-value ${value === null ? 'null' : typeof value}`}>
+          {JSON.stringify(value)}
+        </code>
+      </div>
+    );
+  }
+
+  const entries = Object.entries(value);
+  return (
+    <details className="json-node" open={depth < 1}>
+      <summary>
+        {label !== undefined && <span className="json-key">{label}: </span>}
+        <span className="json-brace">{isArray ? '[' : '{'}</span>
+        <span className="json-count">{entries.length} {isArray ? 'items' : 'keys'}</span>
+        <span className="json-brace">{isArray ? ']' : '}'}</span>
+      </summary>
+      <div className="json-children">
+        {entries.map(([key, child]) => (
+          <JsonNode key={key} label={isArray ? Number(key) : key} value={child} depth={depth + 1} />
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function JsonBody({ body }) {
+  try {
+    return (
+      <div className="json-tree">
+        <JsonNode value={JSON.parse(body)} />
+      </div>
+    );
+  } catch {
+    return null;
   }
 }
 
@@ -56,13 +100,17 @@ function RequestDetail({ entry, onClose }) {
           entry.error ? (
             <p className="empty-hint" style={{ color: 'var(--red)' }}>{entry.error}</p>
           ) : entry.body ? (
-            <CodeEditor
-              key={`${entry.n}-${tab}`}
-              value={isJson ? prettyJson(entry.body) : entry.body}
-              readOnly
-              language={isJson ? 'json' : 'text'}
-              onChange={() => {}}
-            />
+            isJson ? (
+              <JsonBody body={entry.body} />
+            ) : (
+              <CodeEditor
+                key={`${entry.n}-${tab}`}
+                value={entry.body}
+                readOnly
+                language="text"
+                onChange={() => {}}
+              />
+            )
           ) : (
             <p className="empty-hint">Empty response body.</p>
           )
@@ -98,53 +146,32 @@ function RequestsView({ requests }) {
   }
 
   return (
-    <div className="split-view">
-      <div className="split-top">
-        <table className="job-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Iter</th>
-              <th>Method</th>
-              <th>Path</th>
-              <th>Status</th>
-              <th>Time</th>
-              <th>Size</th>
-              <th>Proxy</th>
-              <th className="spacer" />
-            </tr>
-          </thead>
-          <tbody>
-            {requests.map((item) => (
-              <tr
-                key={item.n}
-                onClick={() => setSelected(item.n === selected ? null : item.n)}
-                data-selected={item.n === selected}
-                data-failed={!item.ok}
-              >
-                <td>{item.n}</td>
-                <td>{item.iteration}</td>
-                <td style={{ color: METHOD_COLORS[item.method] }}>{item.method}</td>
-                <td className="cell-url" title={item.url}>
-                  {shortUrl(item.url)}
-                </td>
-                <td style={{ color: statusColor(item.status) }}>
-                  {item.status ?? 'ERR'}
-                </td>
-                <td>{item.time} ms</td>
-                <td>{formatBytes(item.size)}</td>
-                <td className="hint">{item.via ?? '—'}</td>
-                <td className="spacer" />
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {entry && (
-        <div className="split-bottom">
-          <RequestDetail entry={entry} onClose={() => setSelected(null)} />
+    <div className="response-cards">
+      {requests.map((item) => (
+        <div className="response-card" key={item.n} data-open={item.n === selected} data-failed={!item.ok}>
+          <button
+            type="button"
+            className="response-card-summary"
+            onClick={() => setSelected(item.n === selected ? null : item.n)}
+          >
+            <span className="response-card-index">#{item.n}</span>
+            <span className="method-tag" style={{ color: METHOD_COLORS[item.method] }}>
+              {item.method}
+            </span>
+            <span className="response-card-main">
+              <strong>Iteration {item.iteration}</strong>
+              <small title={item.url}>{shortUrl(item.url)}</small>
+            </span>
+            <span className="response-card-status" style={{ color: statusColor(item.status) }}>
+              {item.status ?? 'ERR'}
+            </span>
+            <span className="response-card-meta">{item.time} ms · {formatBytes(item.size)}</span>
+            <span className="response-card-proxy">{item.via ?? 'Direct'}</span>
+            <span className="response-card-chevron">{item.n === selected ? '⌃' : '⌄'}</span>
+          </button>
+          {entry?.n === item.n && <RequestDetail entry={entry} onClose={() => setSelected(null)} />}
         </div>
-      )}
+      ))}
     </div>
   );
 }

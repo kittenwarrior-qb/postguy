@@ -1,10 +1,11 @@
 import { useState } from 'react';
 
 import { CodeEditor } from './CodeEditor.jsx';
+import { BinaryPicker, FormDataEditor } from './FormDataEditor.jsx';
 import { KeyValueEditor } from './KeyValueEditor.jsx';
 import { ScriptSnippets } from './ScriptSnippets.jsx';
 import { api } from '../lib/api.js';
-import { activeCount } from '../lib/request.js';
+import { activeCount, needsReattach } from '../lib/request.js';
 import { useStore } from '../store/useStore.js';
 
 const BODY_MODES = [
@@ -12,6 +13,7 @@ const BODY_MODES = [
   { id: 'raw', label: 'raw' },
   { id: 'urlencoded', label: 'x-www-form-urlencoded' },
   { id: 'formdata', label: 'form-data' },
+  { id: 'binary', label: 'binary' },
 ];
 
 function OAuth2Editor({ auth, set }) {
@@ -262,6 +264,13 @@ function BodyEditor({ body, onChange }) {
         )}
       </div>
 
+      {needsReattach(body) && (
+        <p className="hint reattach-warning">
+          The attached file's bytes were not kept across the reload — pick the file again before
+          sending.
+        </p>
+      )}
+
       <div className="pane-body">
         {mode === 'none' && <p className="empty-hint">This request does not have a body.</p>}
         {mode === 'raw' && (
@@ -276,7 +285,10 @@ function BodyEditor({ body, onChange }) {
           <KeyValueEditor rows={body.urlencoded} onChange={(rows) => set({ urlencoded: rows })} />
         )}
         {mode === 'formdata' && (
-          <KeyValueEditor rows={body.formdata} onChange={(rows) => set({ formdata: rows })} />
+          <FormDataEditor rows={body.formdata} onChange={(rows) => set({ formdata: rows })} />
+        )}
+        {mode === 'binary' && (
+          <BinaryPicker file={body.file} onChange={(file) => set({ file })} />
         )}
       </div>
     </div>

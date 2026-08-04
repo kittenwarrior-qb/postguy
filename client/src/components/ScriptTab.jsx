@@ -2,6 +2,7 @@ import { CodeEditor } from './CodeEditor.jsx';
 import { JobOutput } from './JobOutput.jsx';
 import { INTERVAL_UNITS, formatDuration, intervalToMs } from '../lib/request.js';
 import { useStore } from '../store/useStore.js';
+import { SCRIPT_ASSETS } from '../lib/scriptAssets.js';
 
 const STATUS_LABELS = {
   idle: 'Idle',
@@ -50,7 +51,7 @@ function RunSummary({ job, config }) {
   );
 }
 
-export function ScriptTab({ tab }) {
+export function ScriptTab({ tab, onSave }) {
   const patchScript = useStore((state) => state.patchScript);
   const runJob = useStore((state) => state.runJob);
   const stopJob = useStore((state) => state.stopJob);
@@ -61,6 +62,24 @@ export function ScriptTab({ tab }) {
   const running = job.status === 'running';
 
   const setConfig = (patch) => patchScript({ config: { ...config, ...patch } });
+
+  const loadAsset = (assetId) => {
+    const asset = SCRIPT_ASSETS.find((item) => item.id === assetId);
+    if (!asset) return;
+    const vars = asset.vars.map((row) => ({
+      id: `${asset.id}-${row.key}`,
+      key: row.key,
+      value: row.value,
+      description: row.description,
+      enabled: true,
+    }));
+    patchScript({
+      name: asset.name,
+      code: asset.code,
+      vars,
+      config: { ...asset.config },
+    });
+  };
 
   const totalWait = intervalToMs(config.interval, config.intervalUnit);
   const estimate =
@@ -79,6 +98,19 @@ export function ScriptTab({ tab }) {
           placeholder="Script name"
           onChange={(e) => patchScript({ name: e.target.value })}
         />
+        <select
+          className="asset-select"
+          defaultValue=""
+          onChange={(e) => {
+            loadAsset(e.target.value);
+            e.target.value = '';
+          }}
+          aria-label="Load script asset"
+        >
+          <option value="" disabled>Load asset</option>
+          {SCRIPT_ASSETS.map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+        </select>
+        <button type="button" className="btn ghost" onClick={onSave}>Save</button>
         {running ? (
           <button type="button" className="btn danger" onClick={stopJob}>
             Stop
